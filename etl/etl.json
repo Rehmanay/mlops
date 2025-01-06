@@ -1,0 +1,23 @@
+{
+    "Name": "",
+    "Description": "Image data preprocessing",
+    "Role": "arn:aws:iam::<account-id>:role/GlueEtlRole",
+    "ExecutionProperty": {
+        "MaxConcurrentRuns": 1
+    },
+    "Command": {
+        "Name": "glueetl",
+        "ScriptLocation": "s3://<bucket-name>/etl/preprocess.py",
+        "PythonVersion": "3"
+    },
+    "DefaultArguments": {
+        "--job-language": "python",
+        "--enable-continuous-cloudwatch-log": "true", 
+        "--enable-spark-ui": "true", "--enable-metrics":"", 
+        "--TempDir":"s3://<bucket-name>/temp/",
+        "--job-bookmark-option":"job-bookmark-disable"
+    },
+    "Timeout": 150,
+    "WorkerType": "Standard", 
+    "NumberOfWorkers": 1
+}
