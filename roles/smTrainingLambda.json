@@ -12,7 +12,7 @@
         {
             "Effect": "Allow",
             "Action": "logs:CreateLogGroup",
-            "Resource": "arn:aws:logs:<region>:<account-id>:*"
+            "Resource": "arn:aws:logs:us-east-1:649165757841:*"
         },
         {
             "Effect": "Allow",
@@ -21,13 +21,13 @@
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:<region>:<account-id>:log-group:/aws/lambda/lambda:*"
+                "arn:aws:logs:us-east-1:649165757841:log-group:/aws/lambda/lambda:*"
             ]
         },
         {
             "Effect": "Allow",
             "Action": "iam:PassRole",
-            "Resource": "arn:aws:iam::<account-id>:role/sagemaker-fullaccess"
+            "Resource": "arn:aws:iam::649165757841:role/sagemaker-fullaccess"
         },
         {
             "Sid": "Statement1",

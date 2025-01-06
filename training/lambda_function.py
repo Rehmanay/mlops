@@ -7,8 +7,9 @@ sm = boto3.client('sagemaker')
 cp = boto3.client('codepipeline')
 
 def lambda_handler(event, context):
-    bucket_name = event.get('bucket_name', '<bucket-name>')  
-    file_key = event.get('json_location', 'training/tj.json')  
+    params = json.loads(event["CodePipeline.job"]["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+    bucket_name = params['bucket_name'] 
+    file_key = params['json_location']
     job_name = f'lambda-sm-{str(time.time())[-5:]}'
     jobId = event['CodePipeline.job']['id']
 

@@ -1,6 +1,6 @@
 {
     "AlgorithmSpecification": {
-        "TrainingImage": "<account-id>.dkr.ecr.<region>.amazonaws.com/<ecro-repo-name>:<ecro-img-tag>",
+        "TrainingImage": "<account-id>.dkr.ecr.<region>.amazonaws.com/<ecr-repo>:<ecr-img-tag>",
         "TrainingInputMode": "File"
     },
     "RoleArn": "arn:aws:iam::<account-id>:role/SmTrainingRole",

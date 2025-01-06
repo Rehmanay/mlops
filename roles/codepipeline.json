@@ -176,8 +176,8 @@
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:<region>:<account-id>:log-group:/aws/codepipeline/etlJob-clone",
-                "arn:aws:logs:<region>:<account-id>:log-group:/aws/codepipeline/etlJob-clone:log-stream:*"
+                "arn:aws:logs:us-east-1:649165757841:log-group:/aws/codepipeline/etlJob-clone",
+                "arn:aws:logs:us-east-1:649165757841:log-group:/aws/codepipeline/etlJob-clone:log-stream:*"
             ]
         }
     ],

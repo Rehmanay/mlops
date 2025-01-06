@@ -27,7 +27,7 @@
             ],
             "Resource": [
                 "arn:aws:s3:::*/*",
-                "arn:aws:s3:::codepipeline-<region>-*"
+                "arn:aws:s3:::codepipeline-us-east-1-*"
             ]
         },
         {
@@ -38,8 +38,8 @@
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:<region>:<account-id>:log-group:/aws/codebuild/docker-image",
-                "arn:aws:logs:<region>:<account-id>:log-group:/aws/codebuild/docker-image:*",
+                "arn:aws:logs:us-east-1:649165757841:log-group:/aws/codebuild/docker-image",
+                "arn:aws:logs:us-east-1:649165757841:log-group:/aws/codebuild/docker-image:*",
                 "*"
             ]
         },
@@ -51,7 +51,7 @@
         {
             "Effect": "Allow",
             "Action": "iam:PassRole",
-            "Resource": "arn:aws:iam::<account-id>:role/code-build-role"
+            "Resource": "arn:aws:iam::649165757841:role/code-build-role"
         },
         {
             "Effect": "Allow",
@@ -60,7 +60,7 @@
                 "codestar-connections:GetConnection",
                 "codeconnections:UseConnection"
             ],
-            "Resource": "arn:aws:codestar-connections:<region>:<account-id>:connection/94ac5ede-74f4-49be-9795-d8262074f57e"
+            "Resource": "arn:aws:codestar-connections:us-east-1:649165757841:connection/94ac5ede-74f4-49be-9795-d8262074f57e"
         },
         {
             "Effect": "Allow",
@@ -71,7 +71,7 @@
                 "codebuild:BatchPutTestCases",
                 "codebuild:BatchPutCodeCoverages"
             ],
-            "Resource": "arn:aws:codebuild:<region>:<account-id>:report-group/docker-image-*"
+            "Resource": "arn:aws:codebuild:us-east-1:649165757841:report-group/docker-image-*"
         }
     ]
 }

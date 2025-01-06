@@ -179,11 +179,11 @@ Resources:
                 FunctionName: !Ref ETLJobLambda
                 UserParameters: !Sub |
                   {
-                    "bucket_name": ${S3BucketName},
+                    "bucket_name": "${S3BucketName}",
                     "json_location": "etl/etl.json",
                     "--JOB_NAME": "img-preprocessing",
-                    "--S3_SRC_BUCKET": "<bucket-name>",
-                    "--S3_TARGET_BUCKET": "<bucket-name>",
+                    "--S3_SRC_BUCKET": "${S3BucketName}",
+                    "--S3_TARGET_BUCKET": "${S3BucketName}",
                     "--S3_RAW_DATA_DIR": "raw_data",
                     "--S3_TARGET_DATA_DIR": "training/data"
                   }
@@ -201,8 +201,8 @@ Resources:
                 FunctionName: !Ref SMTrainingJobLambda
                 UserParameters: !Sub |
                   {
-                    "bucket_name": ${S3BucketName},
-                    "json_location": "training/tj.json",
+                    "bucket_name": "${S3BucketName}",
+                    "json_location": "training/tj.json"
                   }
               RunOrder: 1
 
@@ -305,6 +305,26 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: arn:aws:logs:*:*:*
+
+        - PolicyName: "LogsPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action: "logs:CreateLogGroup"
+                Resource: "arn:aws:logs:<region>:<account-id>:*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:<region>:<account-id>:log-group:/aws/lambda/lambda:*"
   
   # SageMaker Training Job Role
   SmTrainingRole:
@@ -350,14 +370,25 @@ Resources:
                   - "sagemaker:DescribeTrainingJob"
                   - "sagemaker:StopTrainingJob"
                 Resource: "*"
-        - PolicyName: "CloudWatchPolicy"
+        - PolicyName: "LogsPolicy"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: "Allow"
                 Action:
-                  - "cloudwatch:PutMetricData"
-                Resource: "*"
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action: "logs:CreateLogGroup"
+                Resource: "arn:aws:logs:<region>:<account-id>:*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:<region>:<account-id>:log-group:/aws/lambda/lambda:*"
 
   # ETL Lambda Role
   EtlLambdaRole:
@@ -468,6 +499,12 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
               - Effect: "Allow"
                 Action: "logs:CreateLogGroup"
                 Resource: "arn:aws:logs:<region>:<account-id>:*"

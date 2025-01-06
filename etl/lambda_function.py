@@ -21,13 +21,14 @@ def wait_for_glue_job(job_name, run_id):
         time.sleep(30)  
 
 def lambda_handler(event, context):
-    bucket_name = event.get('bucket_name', '<bucket-name>')
-    file_key = event.get('json_location', 'etl/etl.json')
+    params = json.loads(event["CodePipeline.job"]["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+    bucket_name = params['bucket_name']
+    file_key = params['json_location']
 
-    src_bucket = event.get('--S3_SRC_BUCKET', '<bucket-name>')
-    tar_bucket = event.get('--S3_TARGET_BUCKET', '<bucket-name>')
-    raw_dir = event.get('--S3_RAW_DATA_DIR', 'raw_data') 
-    tar_dir = event.get('--S3_TARGET_DATA_DIR', 'training/data')
+    src_bucket = params['--S3_SRC_BUCKET']
+    tar_bucket = params['--S3_TARGET_BUCKET']
+    raw_dir = params['--S3_RAW_DATA_DIR']
+    tar_dir = params['--S3_TARGET_DATA_DIR']
 
     jobId = event['CodePipeline.job']['id']
 
