@@ -10,6 +10,7 @@ def lambda_handler(event, context):
     params = json.loads(event["CodePipeline.job"]["data"]["actionConfiguration"]["configuration"]["UserParameters"])
     bucket_name = params['bucket_name'] 
     file_key = params['json_location']
+    tracking_uri = params['tracking_uri']
     job_name = f'lambda-sm-{str(time.time())[-5:]}'
     jobId = event['CodePipeline.job']['id']
 
@@ -18,6 +19,8 @@ def lambda_handler(event, context):
         file_content = response['Body'].read().decode('utf-8')
         tj = json.loads(file_content)
         tj['TrainingJobName'] = job_name
+        tj['Environment']['TRACKING_URI'] = tracking_uri
+        print(tj)
 
         sm.create_training_job(**tj)
 

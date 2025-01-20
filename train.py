@@ -1,5 +1,4 @@
 import os
-import yaml
 import argparse
 from seg_unet import UNet
 from loader import UNETLoader
@@ -8,11 +7,12 @@ from torchvision.transforms import Resize, ToTensor
 from torch.utils.data import DataLoader, random_split
 from torch import optim, nn
 from PIL import Image
-from tqdm import tqdm
 import torch
 from einops import rearrange
 import time
 import logging
+import mlflow
+import boto3
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -45,9 +45,10 @@ if __name__ == "__main__":
     parser.add_argument("mode", nargs='?', default=None, help="SageMaker training mode")
     
     args, unknown = parser.parse_known_args()  # Use parse_known_args instead of parse_args
-    
+    job_name = os.getenv("TRAINING_JOB_NAME", "unknown")
     logger.info(f"Arguments: {args}")
     logger.info(f"Unknown arguments: {unknown}")
+    logger.info(f"training job name: {job_name}")
 
     mode = os.environ.get('SM_HP_MODE', 'train')
     reshape_h = int(os.environ.get('SM_HP_RESHAPE_H', 832))
@@ -56,7 +57,7 @@ if __name__ == "__main__":
     output_path = os.environ.get('SM_OUTPUT_DATA_DIR', '/opt/ml/output')
     ckpts_dir = os.environ.get('SM_MODEL_DIR', '/opt/ml/model')
 
-    helper('/opt/ml/')
+    mlflow_uri = os.environ.get('TRACKING_URI')
 
 
     unet_init = {
@@ -93,6 +94,10 @@ if __name__ == "__main__":
     model.to(device)
     logger.info(f"Using device: {device}")
     logger.info(f"data path : {data_path}")
+    
+    mlflow.set_tracking_uri(mlflow_uri)
+    logger.info(f"Tracking uri for mlflow: {mlflow_uri, mlflow.get_tracking_uri()}")
+    mlflow.set_experiment("UNet Image Segmentation")
 
     if mode == "train":
         dataset = UNETLoader(root=data_path, img_tfs=img_tfs, mask_tfs=mask_tfs)
@@ -112,39 +117,51 @@ if __name__ == "__main__":
                 logger.info("Loaded pretrained checkpoint")
             else:
                 logger.warning(f"Checkpoint not found at: {checkpoint_path}")
-    
-        for ep in range(train_config['epochs']):
-            logger.info(f"Starting epoch {ep + 1}/{train_config['epochs']}")
-            model.train()
-            running_train_loss = 0.0
-            for imgs_b, mask_b in train_loader:
-                mask_b = mask_b.squeeze(1)
-                imgs_b, mask_b = imgs_b.to(device), mask_b.to(device)
-                optimizer.zero_grad()
-                output = model(imgs_b)
-                loss = criterion(output, mask_b)
-                loss.backward()
-                optimizer.step()
-                running_train_loss += loss.item()
-            train_loss = running_train_loss / len(train_loader)
-            logger.info(f"Epoch {ep + 1} - Train loss: {train_loss:.4f}")
 
-            if len(train_config['trainval_split']) > 1:
-                model.eval()
-                running_val_loss = 0.0
-                with torch.no_grad():
-                    for imgs_b, mask_b in val_loader:
-                        mask_b = rearrange(mask_b, 'b c h w -> b (c h) w')
-                        imgs_b, mask_b = imgs_b.to(device), mask_b.to(device)
-                        output = model(imgs_b)
-                        loss = criterion(output, mask_b)
-                        running_val_loss += loss.item()
-                val_loss = running_val_loss / len(val_loader)
-                logger.info(f"Epoch {ep + 1} - Validation loss: {val_loss:.4f}")
-        
-            save_checkpoint(model, train_loss, val_loss, args.model_dir)
+        with mlflow.start_run(run_name=job_name):
+            mlflow.log_param("n_epochs", train_config['epochs'])
+            mlflow.log_param("Learning rate", train_config['learning_rate'])
+            mlflow.log_param("Train Validation Split", train_config['trainval_split'])
+            mlflow.log_param("Batch Size", train_config['batch_size'])
+            mlflow.log_param("Device", device)
+            for ep in range(train_config['epochs']):
+                logger.info(f"Starting epoch {ep + 1}/{train_config['epochs']}")
+                model.train()
+                running_train_loss = 0.0
+                for imgs_b, mask_b in train_loader:
+                    mask_b = mask_b.squeeze(1)
+                    imgs_b, mask_b = imgs_b.to(device), mask_b.to(device)
+                    optimizer.zero_grad()
+                    output = model(imgs_b)
+                    loss = criterion(output, mask_b)
+                    loss.backward()
+                    optimizer.step()
+                    running_train_loss += loss.item()
+                train_loss = running_train_loss / len(train_loader)
+                logger.info(f"Epoch {ep + 1} - Train loss: {train_loss:.4f}")
+
+                if len(train_config['trainval_split']) > 1:
+                    model.eval()
+                    running_val_loss = 0.0
+                    with torch.no_grad():
+                        for imgs_b, mask_b in val_loader:
+                            mask_b = rearrange(mask_b, 'b c h w -> b (c h) w')
+                            imgs_b, mask_b = imgs_b.to(device), mask_b.to(device)
+                            output = model(imgs_b)
+                            loss = criterion(output, mask_b)
+                            running_val_loss += loss.item()
+                    val_loss = running_val_loss / len(val_loader)
+                    logger.info(f"Epoch {ep + 1} - Validation loss: {val_loss:.4f}")
+                    mlflow.log_metric("validation_loss", val_loss, step=ep)
+
+            mlflow.pytorch.log_model(pytorch_model=model, 
+                                    artifact_path="model",
+                                    input_example=torch.Tensor(train_config['batch_size'], 3, reshape_h, reshape_w).numpy())
+        save_checkpoint(model, train_loss, val_loss, args.model_dir)
 
         logger.info("Training completed")
+        # helper('/opt/')
+
 
     elif mode == "inference":
         infer_config = {

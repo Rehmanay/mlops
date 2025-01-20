@@ -36,6 +36,21 @@ Parameters:
     Description: Github App Connection String
     Default: <git-conn-arn>
 
+  accessKey:
+    Type: String
+    Description: mlflow administrator user access key
+    Default: <access-key>
+  
+  secretKey:
+    Type: String
+    Description: mlflow administrator user secret key
+    Default: <secret-key>
+  
+  keyPair:
+    Type: String
+    Description: EC2 Connection SSH key pair name
+    Default: <key-pair>
+
 Resources:
   BuildEcrImage:
     Type: AWS::CodeBuild::Project
@@ -126,6 +141,58 @@ Resources:
       Timeout: 900
       MemorySize: 128
 
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0e2c8caa4b6378d8c
+      InstanceType: t2.medium
+      SecurityGroups:
+        - !Ref SecurityGroup
+      KeyName: !Sub ${keyPair}
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo apt update
+          sudo apt install python3-pip -y
+          sudo apt install python3-venv -y
+          python3 -m venv /home/ubuntu/mlflow 
+          . /home/ubuntu/mlflow/bin/activate
+          pip3 install mlflow boto3 awscli
+          mkdir -p /home/ubuntu/.aws
+          echo -e "[default]\nregion = ${AWS::Region}" > /home/ubuntu/.aws/config
+          echo -e "[default]\naws_access_key_id = ${accessKey}\naws_secret_access_key = ${secretKey}" > /home/ubuntu/.aws/credentials
+          mlflow server --host 0.0.0.0 --default-artifact-root s3://mlops-10 --dev > /var/log/mlflow.log 2>&1 &
+          
+      Tags:
+        - Key: Name
+          Value: mlflow
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP, HTTPS, SSH, and port 5000 access
+      SecurityGroupIngress:
+          # HTTP
+        - IpProtocol: tcp 
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          # SSH
+        - IpProtocol: tcp 
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          # HTTPS
+        - IpProtocol: tcp 
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0 
+          # mlflow port
+        - IpProtocol: tcp 
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
   MLOpsPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -150,44 +217,40 @@ Resources:
                 FullRepositoryId: !Sub ${GitUser}/${GitRepoName}
                 BranchName: !Sub ${GitRepoBranch}
               RunOrder: 1
-
-        - Name: EcrImageBuild
-          Actions:
-            - Name: BuildImage
-              InputArtifacts:
-                - Name: RepoConnectionOutput
-              OutputArtifacts:
-                - Name: EcrImageBuild
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Version: "1"
-                Provider: CodeBuild
-              Configuration:
-                ProjectName: !Ref BuildEcrImage
-              RunOrder: 1
-
-        - Name: PreprocessingETL
-          Actions:
-            - Name: GlueJob
-              ActionTypeId:
-                Category: Invoke
-                Owner: AWS
-                Version: "1"
-                Provider: Lambda
-              Configuration:
-                FunctionName: !Ref ETLJobLambda
-                UserParameters: !Sub |
-                  {
-                    "bucket_name": "${S3BucketName}",
-                    "json_location": "etl/etl.json",
-                    "--JOB_NAME": "img-preprocessing",
-                    "--S3_SRC_BUCKET": "${S3BucketName}",
-                    "--S3_TARGET_BUCKET": "${S3BucketName}",
-                    "--S3_RAW_DATA_DIR": "raw_data",
-                    "--S3_TARGET_DATA_DIR": "training/data"
-                  }
-              RunOrder: 1
+    
+        - Name: BuildImage
+          InputArtifacts:
+            - Name: RepoConnectionOutput
+          OutputArtifacts:
+            - Name: EcrImageBuild
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: "1"
+            Provider: CodeBuild
+          Configuration:
+            ProjectName: !Ref BuildEcrImage
+          RunOrder: 1
+          
+        - Name: GlueJob
+          ActionTypeId:
+            Category: Invoke
+            Owner: AWS
+            Version: "1"
+            Provider: Lambda
+          Configuration:
+            FunctionName: !Ref ETLJobLambda
+            UserParameters: !Sub |
+              {
+                "bucket_name": "${S3BucketName}",
+                "json_location": "etl/etl.json",
+                "--JOB_NAME": "img-preprocessing",
+                "--S3_SRC_BUCKET": "${S3BucketName}",
+                "--S3_TARGET_BUCKET": "${S3BucketName}",
+                "--S3_RAW_DATA_DIR": "raw_data",
+                "--S3_TARGET_DATA_DIR": "training/data"
+              }
+          RunOrder: 1
 
         - Name: ModelTraining
           Actions:
@@ -202,7 +265,8 @@ Resources:
                 UserParameters: !Sub |
                   {
                     "bucket_name": "${S3BucketName}",
-                    "json_location": "training/tj.json"
+                    "json_location": "training/tj.json",
+                    "tracking_uri": "http://${EC2Instance.PublicIp}:5000"
                   }
               RunOrder: 1
 
